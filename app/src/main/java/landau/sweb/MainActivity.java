@@ -24,6 +24,11 @@ import android.database.sqlite.SQLiteStatement;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
+import android.net.NetworkRequest;
 import android.net.Uri;
 import android.net.http.SslCertificate;
 import android.net.http.SslError;
@@ -35,6 +40,7 @@ import android.os.Message;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresApi;
 import android.text.Editable;
 import android.text.Html;
 import android.text.TextWatcher;
@@ -114,6 +120,11 @@ public class MainActivity extends Activity {
         boolean isDesktopUA;
     }
 
+    private static final String DEBUG_TAG = "NetworkStatusExample";
+    boolean isWifiConn = false;
+    boolean isMobileConn = false;
+
+
     private static final String TAG = MainActivity.class.getSimpleName();
 
     static final String searchUrl = "https://www.google.com/search?q=%s";
@@ -184,7 +195,7 @@ public class MainActivity extends Activity {
     }
 
     @SuppressWarnings("unchecked")
-    final MenuAction[] menuActions = new MenuAction[]{
+    /*final MenuAction[] menuActions = new MenuAction[]{
             new MenuAction("Desktop UA", R.drawable.ua, this::toggleDesktopUA, () -> getCurrentTab().isDesktopUA),
             new MenuAction("3rd party cookies", R.drawable.cookies_3rdparty, this::toggleThirdPartyCookies,
                     () -> CookieManager.getInstance().acceptThirdPartyCookies(getCurrentWebView())),
@@ -228,9 +239,9 @@ public class MainActivity extends Activity {
                 switchToTab(tabs.size() - 1);
             }),
             new MenuAction("Close tab", R.drawable.tab_close, this::closeCurrentTab),
-    };
+    };*/
 
-    final String[][] toolbarActions = {
+/*    final String[][] toolbarActions = {
             {"Back", "Scroll to top", "Tab history"},
             {"Forward", "Scroll to bottom", "Ad Blocker"},
             {"Bookmarks", null, "Add bookmark"},
@@ -249,7 +260,7 @@ public class MainActivity extends Activity {
         if (action == null) throw new IllegalArgumentException("name");
         return action;
     }
-
+*/
     static class TitleAndUrl {
         String title;
         String url;
@@ -438,6 +449,20 @@ public class MainActivity extends Activity {
                 if (isLogRequests) {
                     requestsLog.add(url);
                 }
+
+                /*ConnectivityManager connMgr =
+                        (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                for (Network network : connMgr.getAllNetworks()) {
+                    NetworkInfo networkInfo = connMgr.getNetworkInfo(network);
+                    if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
+                        isWifiConn |= networkInfo.isConnected();
+                    }
+                    if (networkInfo.getType() == ConnectivityManager.TYPE_MOBILE) {
+                        isMobileConn |= networkInfo.isConnected();
+                    }
+                }
+                Log.d(DEBUG_TAG, "Wifi connected: " + isWifiConn);
+                Log.d(DEBUG_TAG, "Mobile connected: " + isMobileConn);*/
             }
 
             final String[] sslErrors = {"Not yet valid", "Expired", "Hostname mismatch", "Untrusted CA", "Invalid date", "Unknown error"};
@@ -660,7 +685,7 @@ public class MainActivity extends Activity {
         getCurrentWebView().setVisibility(View.GONE);
         currentTabIndex = tab;
         getCurrentWebView().setVisibility(View.VISIBLE);
-        et.setText(getCurrentWebView().getUrl());
+        //et.setText(getCurrentWebView().getUrl());
         getCurrentWebView().requestFocus();
     }
 
@@ -673,6 +698,11 @@ public class MainActivity extends Activity {
             getWindow().getDecorView().setSystemUiVisibility(isFullscreen ? flags : 0);
         }
     }
+
+
+
+
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -707,8 +737,10 @@ public class MainActivity extends Activity {
 
         // setup edit text
         et.setSelected(false);
-        String initialUrl = getUrlFromIntent(getIntent());
-        et.setText(initialUrl.isEmpty() ? "about:blank" : initialUrl);
+        et.setVisibility(View.GONE);
+        String initialUrl = "192.168.4.1";//getUrlFromIntent(getIntent());
+        //et.setText(initialUrl.isEmpty() ? "about:blank" : initialUrl);
+        et.setText(initialUrl.isEmpty() ? "192.168.4.1" : initialUrl);
         et.setAdapter(new SearchAutocompleteAdapter(this, text -> {
             et.setText(text);
             et.setSelection(text.length());
@@ -718,13 +750,17 @@ public class MainActivity extends Activity {
             loadUrl(et.getText().toString(), getCurrentWebView());
         });
 
-        setupToolbar(findViewById(R.id.toolbar));
+//        setupToolbar(findViewById(R.id.toolbar));
 
         et.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
-                loadUrl(et.getText().toString(), getCurrentWebView());
-                getCurrentWebView().requestFocus();
-                return true;
+                //if (isWifiConn) {
+                    loadUrl(et.getText().toString(), getCurrentWebView());
+                    getCurrentWebView().requestFocus();
+                /*}
+                else
+                    Log.d(DEBUG_TAG, "no connection");
+                */return true;
             } else {
                 return false;
             }
@@ -760,13 +796,32 @@ public class MainActivity extends Activity {
             hideKeyboard();
         });
 
-        useAdBlocker = prefs.getBoolean("adblocker", true);
-        initAdblocker();
+        /*useAdBlocker = prefs.getBoolean("adblocker", true);
+        initAdblocker();*/
 
         newTab(et.getText().toString());
         getCurrentWebView().setVisibility(View.VISIBLE);
         getCurrentWebView().requestFocus();
-        onNightModeChange();
+//        onNightModeChange();
+
+
+
+
+        NetworkRequest.Builder requestBuilder = new NetworkRequest.Builder();
+        requestBuilder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        cm.requestNetwork(requestBuilder.build(), new ConnectivityManager.NetworkCallback() {
+            @RequiresApi(api = Build.VERSION_CODES.M)
+            @Override
+            public void onAvailable(Network network) {
+                cm.bindProcessToNetwork(network);
+            }
+
+            @Override
+            public void onUnavailable() {
+                super.onUnavailable();
+            }
+        });
     }
 
     @Override
@@ -805,7 +860,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void setupToolbar(ViewGroup parent) {
+ /*   private void setupToolbar(ViewGroup parent) {
         for (String[] actions : toolbarActions) {
             View v = getLayoutInflater().inflate(R.layout.toolbar_button, parent, false);
             parent.addView(v);
@@ -830,7 +885,7 @@ public class MainActivity extends Activity {
             }
             setToolbarButtonActions(v, a1, a2, a3);
         }
-    }
+    }*/
 
     private void pageInfo() {
         String s = "URL: " + getCurrentWebView().getUrl() + "\n";
@@ -891,7 +946,7 @@ public class MainActivity extends Activity {
         tabsDialog.show();
     }
 
-    private void showTabHistory() {
+/*    private void showTabHistory() {
         WebBackForwardList list = getCurrentWebView().copyBackForwardList();
         final int size = list.getSize();
         final int idx = size - list.getCurrentIndex() - 1;
@@ -1223,7 +1278,7 @@ public class MainActivity extends Activity {
         setTabCountText(tabs.size());
         getCurrentWebView().requestFocus();
     }
-
+*/
     private String getUrlFromIntent(Intent intent) {
         if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
             return intent.getDataString();
@@ -1245,7 +1300,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void onNightModeChange() {
+/*    private void onNightModeChange() {
         if (isNightMode) {
             int textColor = Color.rgb(0x61, 0x61, 0x5f);
             int backgroundColor = Color.rgb(0x22, 0x22, 0x22);
@@ -1348,7 +1403,7 @@ public class MainActivity extends Activity {
                 .setTitle("Full menu")
                 .setAdapter(adapter, (dialog, which) -> menuActions[which].action.run())
                 .show();
-    }
+    }*/
 
     private void shareUrl() {
         Intent intent = new Intent(Intent.ACTION_SEND);
@@ -1402,11 +1457,11 @@ public class MainActivity extends Activity {
         imm.hideSoftInputFromWindow(et.getWindowToken(), 0);
     }
 
-    private void showKeyboard() {
+/*    private void showKeyboard() {
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         assert imm != null;
         imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0);
-    }
+    }*/
 
     @Override
     public void onBackPressed() {
@@ -1414,8 +1469,8 @@ public class MainActivity extends Activity {
             fullScreenCallback[0].onCustomViewHidden();
         } else if (getCurrentWebView().canGoBack()) {
             getCurrentWebView().goBack();
-        } else if (tabs.size() > 1) {
-            closeCurrentTab();
+        //} else if (tabs.size() > 1) {
+        //    closeCurrentTab();
         } else {
             super.onBackPressed();
         }
@@ -1525,7 +1580,7 @@ public class MainActivity extends Activity {
         return false;
     }
 
-    @Override
+    /*@Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         if (grantResults.length == 0 || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
             return;
@@ -1538,7 +1593,7 @@ public class MainActivity extends Activity {
                 importBookmarks();
                 break;
         }
-    }
+    }*/
 
     // java.util.function.BooleanSupplier requires API 24
     interface MyBooleanSupplier {
